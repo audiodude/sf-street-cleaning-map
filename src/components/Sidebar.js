@@ -20,9 +20,35 @@ const Sidebar = ({
       onSearch({
         address: searchAddress.trim(),
         date: selectedDate,
-        time: parseInt(selectedTime, 10)
+        time: parseFloat(selectedTime) // Use parseFloat to handle decimal hours
       });
     }
+  };
+
+  const handleNowClick = () => {
+    const now = new Date();
+    
+    // Set today's date in YYYY-MM-DD format
+    const todayDate = now.toISOString().split('T')[0];
+    setSelectedDate(todayDate);
+    
+    // Round to nearest 15-minute interval
+    const currentHour = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const roundedMinutes = Math.round(currentMinutes / 15) * 15;
+    
+    // Handle minute overflow (e.g., 59 minutes rounds to 60)
+    let finalHour = currentHour;
+    let finalMinutes = roundedMinutes;
+    
+    if (roundedMinutes >= 60) {
+      finalHour = (currentHour + 1) % 24;
+      finalMinutes = 0;
+    }
+    
+    // Convert to decimal hours for our time system
+    const timeValue = finalHour + (finalMinutes / 60);
+    setSelectedTime(timeValue.toString());
   };
 
 
@@ -128,14 +154,31 @@ const Sidebar = ({
                   disabled={searchLoading}
                 >
                   <option value="">Select time</option>
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <option key={i} value={i}>
-                      {parseTimeToDisplay(i)}
-                    </option>
-                  ))}
+                  {Array.from({ length: 24 * 4 }, (_, i) => {
+                    const hour = Math.floor(i / 4);
+                    const minutes = (i % 4) * 15;
+                    const timeValue = hour + (minutes / 60); // Convert to decimal hours
+                    const ampm = hour < 12 ? 'AM' : 'PM';
+                    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                    const formattedDisplay = `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                    
+                    return (
+                      <option key={i} value={timeValue}>
+                        {formattedDisplay}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>
+            
+            <button
+              type="button"
+              onClick={handleNowClick}
+              className="w-full bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 text-sm font-medium"
+            >
+              Set to Now
+            </button>
             
             <div className="flex gap-2">
               <button

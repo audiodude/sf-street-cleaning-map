@@ -288,10 +288,13 @@ export const findSegmentsByStreetName = (data, streetName) => {
 };
 
 export const parseTimeToDisplay = (hour) => {
-  if (hour < 12) {
-    return hour === 0 ? '12:00 AM' : `${hour}:00 AM`;
+  // Handle decimal hours by flooring to get the whole hour
+  const wholeHour = Math.floor(hour);
+  
+  if (wholeHour < 12) {
+    return wholeHour === 0 ? '12:00 AM' : `${wholeHour}:00 AM`;
   } else {
-    return hour === 12 ? '12:00 PM' : `${hour - 12}:00 PM`;
+    return wholeHour === 12 ? '12:00 PM' : `${wholeHour - 12}:00 PM`;
   }
 };
 
@@ -327,7 +330,9 @@ export const isSegmentActiveAtDateTime = (segment, targetDate, targetHour) => {
     (weekOfMonth === 5 && segment.week5);
   
   // Check if the time is within the cleaning hours
-  const timeMatches = targetHour >= segment.fromHour && targetHour < segment.toHour;
+  // Convert targetHour to just the hour part for comparison since segment times are in whole hours
+  const targetHourWhole = Math.floor(targetHour);
+  const timeMatches = targetHourWhole >= segment.fromHour && targetHourWhole < segment.toHour;
   
   
   return dayMatches && weekMatches && timeMatches;
