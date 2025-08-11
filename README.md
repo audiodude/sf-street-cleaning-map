@@ -1,70 +1,135 @@
-# Getting Started with Create React App
+# SF Street Cleaning Map
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+An interactive web application that helps San Francisco residents find street cleaning schedules in their area. Built with React and Leaflet, this app displays real-time street cleaning information on an interactive map.
+
+## Features
+
+- 🗺️ **Interactive Map**: View street cleaning schedules on a detailed San Francisco map
+- 🔍 **Location Search**: Find street cleaning schedules for specific addresses
+- 📍 **Current Location**: Get cleaning schedules for your current location
+- 📅 **Today's Schedule**: Quick view of today's street cleaning in your area
+- 🕒 **Time Filtering**: Filter schedules by time ranges
+- 📊 **Smart Grouping**: Similar street segments are grouped for better readability
+- 📱 **Responsive Design**: Works on desktop and mobile devices
+
+## Tech Stack
+
+- **Frontend**: React 19, React Leaflet
+- **Mapping**: Leaflet with OpenStreetMap tiles
+- **Styling**: Tailwind CSS
+- **Data Processing**: Papa Parse (CSV parsing), Wellknown (WKT geometry parsing)
+- **Build Tool**: Create React App
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v16 or higher)
+- npm or yarn
+- Git LFS (for CSV data files)
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd sf-street-cleaning-map
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Pull LFS files (required for street cleaning data):
+```bash
+git lfs pull
+```
+
+4. Start the development server:
+```bash
+npm start
+```
+
+5. Open [http://localhost:3000](http://localhost:3000) to view the app
 
 ## Available Scripts
 
-In the project directory, you can run:
+- `npm start` - Runs the app in development mode
+- `npm test` - Launches the test runner
+- `npm run build` - Builds the app for production
+- `npm run eject` - Ejects from Create React App (one-way operation)
 
-### `npm start`
+## Project Structure
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```
+src/
+├── components/
+│   ├── Map.js          # Interactive Leaflet map component
+│   └── Sidebar.js      # Search and filter sidebar
+├── utils/
+│   ├── dataParser.js   # CSV parsing and data filtering utilities
+│   └── testGrouping.js # Test utilities for data grouping
+├── App.js              # Main application component
+└── index.js            # React entry point
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+public/
+└── Street_Sweeping_Schedule_20250810.csv  # SF street cleaning data (Git LFS)
+```
 
-### `npm test`
+## Data Source
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+The app uses San Francisco's official street sweeping schedule data. The CSV file contains:
+- Street segment geometries (WKT format)
+- Cleaning schedules by day and time
+- Week-of-month patterns (1st, 2nd, 3rd, 4th, 5th week)
+- Street names and block information
 
-### `npm run build`
+## Key Features Explained
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### Smart Grouping
+Similar street segments with the same cleaning time are automatically grouped together. For example, multiple blocks of "Market St" cleaned at the same time will appear as "Market St (3 blocks)".
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Location-Based Search
+- Click "Use My Location" to find nearby street cleaning schedules
+- Search for specific addresses using the search bar
+- Results are sorted by proximity to your location
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Time and Date Filtering
+- View today's cleaning schedule automatically
+- Filter by specific days of the week
+- Filter by time ranges
+- Week-of-month filtering (1st week, 2nd week, etc.)
 
-### `npm run eject`
+## Git LFS Setup
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+This project uses Git LFS to store the large CSV data file. To work with the data:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+# Install Git LFS (if not already installed)
+git lfs install
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+# Track CSV files
+git lfs track "*.csv"
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Pull LFS files
+git lfs pull
+```
 
-## Learn More
+## Contributing
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## License
 
-### Code Splitting
+This project is open source and available under the [MIT License](LICENSE).
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Acknowledgments
 
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- San Francisco Open Data for providing street cleaning schedule data
+- OpenStreetMap for map tiles
+- React Leaflet community for mapping components
