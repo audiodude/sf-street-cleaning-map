@@ -108,7 +108,7 @@ export const filterDataByTime = (data, startTime, endTime) => {
   });
 };
 
-export const getTodaysCleaningSchedule = (data, coordinates) => {
+export const getTodaysCleaningSchedule = (data, coordinates, streetName = null) => {
   const today = new Date();
   const currentDay = today.toLocaleDateString('en-US', { weekday: 'long' });
   const currentWeek = Math.ceil(today.getDate() / 7);
@@ -117,6 +117,15 @@ export const getTodaysCleaningSchedule = (data, coordinates) => {
   const todayData = filterDataByDay(data, currentDay);
   
   const thisWeekData = filterDataByWeek(todayData, [currentWeek]);
+  
+  // If we have a street name, prioritize street name filtering over proximity
+  if (streetName && streetName.trim()) {
+    const streetSegments = findSegmentsByStreetName(thisWeekData, streetName);
+    if (streetSegments.length > 0) {
+      return groupSimilarSegments(streetSegments.slice(0, 20));
+    }
+    // Fallback to proximity if no street name matches found
+  }
   
   if (!coordinates) return groupSimilarSegments(thisWeekData.slice(0, 20));
   
@@ -225,6 +234,57 @@ export const findNearbySegments = (data, coordinates, radiusInDegrees = 0.001) =
   return segmentsWithDistance
     .sort((a, b) => a.distance - b.distance)
     .slice(0, 10); // Only return the 10 closest segments
+};
+
+export const findSegmentsByStreetName = (data, streetName) => {
+  if (!streetName || !streetName.trim()) return [];
+  
+  const searchTerm = streetName.trim().toLowerCase();
+  
+  // Extract potential street name from search term
+  // Handle common patterns like "123 Main St", "Main Street", "Main St"
+  const streetPatterns = [
+    // Remove house numbers (e.g., "123 Main St" -> "Main St")
+    searchTerm.replace(/^\d+\s+/, ''),
+    // Try with common abbreviations
+    searchTerm.replace(/\bstreet\b/g, 'st'),
+    searchTerm.replace(/\bavenue\b/g, 'ave'),
+    searchTerm.replace(/\bboulevard\b/g, 'blvd'),
+    searchTerm.replace(/\bdrive\b/g, 'dr'),
+    searchTerm.replace(/\broad\b/g, 'rd'),
+    // Try without abbreviations
+    searchTerm.replace(/\bst\b/g, 'street'),
+    searchTerm.replace(/\bave\b/g, 'avenue'),
+    searchTerm.replace(/\bblvd\b/g, 'boulevard'),
+    searchTerm.replace(/\bdr\b/g, 'drive'),
+    searchTerm.replace(/\brd\b/g, 'road'),
+  ];
+  
+  // Remove duplicates and empty strings
+  const uniquePatterns = [...new Set(streetPatterns.filter(p => p.length > 0))];
+  
+  const matchingSegments = data.filter(segment => {
+    if (!segment.corridor) return false;
+    
+    const corridorName = segment.corridor.toLowerCase();
+    
+    // Check if any of our street patterns match the corridor name
+    return uniquePatterns.some(pattern => {
+      // Exact match
+      if (corridorName === pattern) return true;
+      
+      // Corridor contains the search pattern
+      if (corridorName.includes(pattern)) return true;
+      
+      // Search pattern contains the corridor (for shorter corridor names)
+      if (pattern.includes(corridorName) && corridorName.length > 3) return true;
+      
+      return false;
+    });
+  });
+  
+  // Sort by corridor name for consistent ordering
+  return matchingSegments.sort((a, b) => a.corridor.localeCompare(b.corridor));
 };
 
 export const parseTimeToDisplay = (hour) => {

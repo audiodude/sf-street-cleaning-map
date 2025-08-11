@@ -3,20 +3,17 @@ import Map from './components/Map';
 import Sidebar from './components/Sidebar';
 import { 
   loadStreetCleaningData, 
-  filterDataByDay, 
-  filterDataByWeek, 
-  filterDataByTime,
   getTodaysCleaningSchedule
 } from './utils/dataParser';
 
 function App() {
   const [data, setData] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
   // Search and location states
   const [searchResult, setSearchResult] = useState(null);
+  const [searchQuery, setSearchQuery] = useState(''); // Store the original search query
   const [searchLoading, setSearchLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [selectedSegment, setSelectedSegment] = useState(null);
@@ -29,7 +26,6 @@ function App() {
         setLoading(true);
         const streetData = await loadStreetCleaningData();
         setData(streetData);
-        setFilteredData(streetData);
         setError(null);
       } catch (err) {
         setError(err.message);
@@ -41,20 +37,22 @@ function App() {
     loadData();
   }, []);
 
-  // Update today's schedule when search result changes
+  // Update today's schedule when search result or query changes
   useEffect(() => {
     if (searchResult && data.length > 0) {
       const coordinates = [searchResult.lng, searchResult.lat];
-      const todayData = getTodaysCleaningSchedule(data, coordinates);
+      // Pass both coordinates and the street name from search query
+      const todayData = getTodaysCleaningSchedule(data, coordinates, searchQuery);
       setTodaySchedule(todayData);
     } else {
       setTodaySchedule([]);
     }
-  }, [searchResult, data]);
+  }, [searchResult, data, searchQuery]);
 
   const handleSearch = async (address) => {
     setSearchLoading(true);
     setError(null);
+    setSearchQuery(address); // Store the original search query
     
     try {
       // Using Nominatim (OpenStreetMap) for geocoding - free and no API key required
@@ -95,6 +93,7 @@ function App() {
 
     setLocationLoading(true);
     setError(null);
+    setSearchQuery(''); // Clear search query when using current location
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -114,28 +113,6 @@ function App() {
     );
   };
 
-  const handleFilter = (filters) => {
-    let filtered = [...data];
-    
-    // Apply day filter
-    if (filters.dayOfWeek) {
-      filtered = filterDataByDay(filtered, filters.dayOfWeek);
-    }
-    
-    // Apply week filter
-    if (filters.weeksOfMonth.length > 0) {
-      filtered = filterDataByWeek(filtered, filters.weeksOfMonth);
-    }
-    
-    // Apply time filter
-    if (filters.timeStart !== '' || filters.timeEnd !== '') {
-      const startTime = filters.timeStart !== '' ? parseInt(filters.timeStart, 10) : 0;
-      const endTime = filters.timeEnd !== '' ? parseInt(filters.timeEnd, 10) : 23;
-      filtered = filterDataByTime(filtered, startTime, endTime);
-    }
-    
-    setFilteredData(filtered);
-  };
 
   const handleSegmentClick = (segment) => {
     setSelectedSegment(segment);
@@ -158,13 +135,12 @@ function App() {
       <div className="w-96 flex-shrink-0">
         <Sidebar
           onSearch={handleSearch}
-          onFilter={handleFilter}
           onCurrentLocation={handleCurrentLocation}
           searchLoading={searchLoading}
           locationLoading={locationLoading}
           searchResult={searchResult}
           todaySchedule={todaySchedule}
-          allData={filteredData}
+          allData={data}
         />
       </div>
       
@@ -183,7 +159,7 @@ function App() {
         )}
         
         <Map 
-          data={filteredData}
+          data={data}
           searchResult={searchResult}
           selectedSegment={selectedSegment}
           onSegmentClick={handleSegmentClick}
