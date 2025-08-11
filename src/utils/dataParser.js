@@ -233,7 +233,7 @@ export const findNearbySegments = (data, coordinates, radiusInDegrees = 0.001) =
   // Sort by distance (closest first) and limit results
   return segmentsWithDistance
     .sort((a, b) => a.distance - b.distance)
-    .slice(0, 10); // Only return the 10 closest segments
+    .slice(0, 50); // Return more segments for parking context
 };
 
 export const findSegmentsByStreetName = (data, streetName) => {
@@ -293,4 +293,142 @@ export const parseTimeToDisplay = (hour) => {
   } else {
     return hour === 12 ? '12:00 PM' : `${hour - 12}:00 PM`;
   }
+};
+
+export const isSegmentActiveAtDateTime = (segment, targetDate, targetHour) => {
+  if (!segment || !targetDate || targetHour === undefined) return false;
+  
+  // Fix date parsing by treating as local date, not UTC
+  const [year, month, day] = targetDate.split('-').map(Number);
+  const date = new Date(year, month - 1, day); // month is 0-indexed in JavaScript
+  const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
+  const weekOfMonth = Math.ceil(date.getDate() / 7);
+  
+  // Check if the day matches
+  const dayMap = {
+    'Monday': 'Mon',
+    'Tuesday': 'Tues', 
+    'Wednesday': 'Wed',
+    'Thursday': 'Thu',
+    'Friday': 'Fri',
+    'Saturday': 'Sat',
+    'Sunday': 'Sun'
+  };
+  
+  const targetDay = dayMap[dayOfWeek];
+  const dayMatches = segment.weekDay === targetDay;
+  
+  // Check if the week matches
+  const weekMatches = 
+    (weekOfMonth === 1 && segment.week1) ||
+    (weekOfMonth === 2 && segment.week2) ||
+    (weekOfMonth === 3 && segment.week3) ||
+    (weekOfMonth === 4 && segment.week4) ||
+    (weekOfMonth === 5 && segment.week5);
+  
+  // Check if the time is within the cleaning hours
+  const timeMatches = targetHour >= segment.fromHour && targetHour < segment.toHour;
+  
+  
+  return dayMatches && weekMatches && timeMatches;
+};
+
+export const groupSegmentsByStatus = (segments) => {
+  const groups = {};
+  
+  segments.forEach(segment => {
+    // Create a key based on corridor, limits, and active status
+    const key = `${segment.corridor}|${segment.limits}|${segment.isActive}`;
+    
+    if (!groups[key]) {
+      groups[key] = {
+        ...segment, // Use the first segment as the base
+        sides: [segment.blockSide],
+        segments: [segment], // Keep track of all segments in this group
+        count: 1
+      };
+    } else {
+      // Add this segment's side to the group
+      if (!groups[key].sides.includes(segment.blockSide)) {
+        groups[key].sides.push(segment.blockSide);
+      }
+      groups[key].segments.push(segment);
+      groups[key].count += 1;
+    }
+  });
+  
+  // Convert to array and update display names
+  return Object.values(groups).map(group => {
+    let displayName = `${group.corridor} (${group.limits})`;
+    
+    // If multiple sides with same status, show the sides
+    if (group.count > 1 && group.sides.length > 1) {
+      const sideLabels = group.sides.map(side => {
+        // Map blockSide to shorter labels
+        const sideMap = {
+          'North': 'N side',
+          'South': 'S side', 
+          'East': 'E side',
+          'West': 'W side',
+          'NorthEast': 'NE side',
+          'NorthWest': 'NW side',
+          'SouthEast': 'SE side',
+          'SouthWest': 'SW side'
+        };
+        return sideMap[side] || side;
+      }).join('/');
+      
+      displayName += ` [${sideLabels}]`;
+    }
+    
+    return {
+      ...group,
+      fullName: displayName,
+      originalFullName: `${group.corridor} (${group.limits})`
+    };
+  });
+};
+
+export const searchStreetCleaningByDateTime = (data, coordinates, streetName, targetDate, targetHour) => {
+  if (!data || !coordinates || !targetDate || targetHour === undefined) return [];
+  
+  let segments = [];
+  
+  // First try to find by street name if provided
+  if (streetName && streetName.trim()) {
+    segments = findSegmentsByStreetName(data, streetName);
+  }
+  
+  // If no street name matches or no street name provided, use proximity
+  if (segments.length === 0) {
+    segments = findNearbySegments(data, coordinates, 0.008); // Much larger radius for parking planning (~880 meters)
+  } else {
+    // Even if we found segments by street name, also add nearby segments for parking context
+    const nearbySegments = findNearbySegments(data, coordinates, 0.008);
+    
+    // Combine and deduplicate by segment ID
+    const existingIds = new Set(segments.map(s => s.id));
+    const additionalSegments = nearbySegments.filter(s => !existingIds.has(s.id));
+    segments = [...segments, ...additionalSegments];
+  }
+  
+  // Add activity status to each segment
+  const segmentsWithStatus = segments.map(segment => ({
+    ...segment,
+    isActive: isSegmentActiveAtDateTime(segment, targetDate, targetHour)
+  }));
+  
+  // Group segments by status
+  const groupedSegments = groupSegmentsByStatus(segmentsWithStatus);
+  
+  // Sort by activity status (active segments first) then by distance if available
+  return groupedSegments.sort((a, b) => {
+    if (a.isActive !== b.isActive) {
+      return b.isActive - a.isActive; // Active segments first
+    }
+    if (a.distance !== undefined && b.distance !== undefined) {
+      return a.distance - b.distance; // Then by distance
+    }
+    return 0;
+  });
 };

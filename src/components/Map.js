@@ -12,7 +12,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
 
-const MapController = ({ center, zoom }) => {
+const MapController = ({ center, zoom, data }) => {
   const map = useMap();
   
   useEffect(() => {
@@ -20,6 +20,31 @@ const MapController = ({ center, zoom }) => {
       map.setView(center, zoom || 15);
     }
   }, [map, center, zoom]);
+
+  // Fit bounds to show all segments when data changes
+  useEffect(() => {
+    if (data && data.length > 0) {
+      const bounds = L.latLngBounds();
+      
+      data.forEach(group => {
+        // Handle grouped segments - get all individual segments
+        const segmentsToCheck = group.segments || [group];
+        
+        segmentsToCheck.forEach(segment => {
+          if (segment.coordinates && segment.coordinates.length > 0) {
+            segment.coordinates.forEach(coord => {
+              bounds.extend([coord[1], coord[0]]); // Convert [lng, lat] to [lat, lng]
+            });
+          }
+        });
+      });
+      
+      // Add some padding and fit the bounds
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+      }
+    }
+  }, [map, data]);
   
   return null;
 };
@@ -36,13 +61,19 @@ const Map = ({
   const mapCenter = searchResult ? [searchResult.lat, searchResult.lng] : sfCenter;
   
   const getLineColor = (segment) => {
+    if (selectedSegment && selectedSegment.id === segment.id) {
+      return '#dc2626'; // darker red for selected
+    }
+    
+    // Use the isActive property if available (from search results)
+    if (segment.hasOwnProperty('isActive')) {
+      return segment.isActive ? '#ef4444' : '#22c55e'; // red for active, green for inactive
+    }
+    
+    // Fallback to current time check for non-search data
     const now = new Date();
     const currentHour = now.getHours();
     const isActiveNow = currentHour >= segment.fromHour && currentHour < segment.toHour;
-    
-    if (selectedSegment && selectedSegment.id === segment.id) {
-      return '#ef4444'; // red for selected
-    }
     
     if (isActiveNow) {
       return '#f59e0b'; // amber for currently active
@@ -65,7 +96,11 @@ const Map = ({
         zoom={13}
         className="h-full w-full"
       >
-        <MapController center={searchResult ? [searchResult.lat, searchResult.lng] : null} zoom={15} />
+        <MapController 
+          center={searchResult ? [searchResult.lat, searchResult.lng] : null} 
+          zoom={15} 
+          data={data}
+        />
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -73,56 +108,78 @@ const Map = ({
         />
         
         {/* Render street segments */}
-        {data.map((segment) => {
-          if (!segment.coordinates || segment.coordinates.length === 0) {
-            return null;
-          }
+        {data.map((group, groupIndex) => {
+          // Handle grouped segments - render all segments within each group
+          const segmentsToRender = group.segments || [group];
           
-          // Convert coordinates from [lng, lat] to [lat, lng] for Leaflet
-          const positions = segment.coordinates.map(coord => [coord[1], coord[0]]);
-          
-          return (
-            <Polyline
-              key={segment.id}
-              positions={positions}
-              color={getLineColor(segment)}
-              weight={getLineWeight(segment)}
-              opacity={0.8}
-              eventHandlers={{
-                click: () => onSegmentClick(segment),
-              }}
-            >
-              <Popup>
-                <div className="min-w-64">
-                  <h3 className="font-semibold text-lg mb-2">{segment.fullName}</h3>
-                  <div className="space-y-1 text-sm">
-                    <p><strong>Day:</strong> {segment.weekDay}</p>
-                    <p><strong>Time:</strong> {parseTimeToDisplay(segment.fromHour)} - {parseTimeToDisplay(segment.toHour)}</p>
-                    <p><strong>Side:</strong> {segment.blockSide}</p>
-                    <p><strong>Limits:</strong> {segment.limits}</p>
-                    <div className="mt-2">
-                      <strong>Weeks:</strong>
-                      <div className="flex gap-1 mt-1">
-                        {[1, 2, 3, 4, 5].map(week => (
-                          <span 
-                            key={week}
-                            className={`px-2 py-1 rounded text-xs ${
-                              segment[`week${week}`] 
-                                ? 'bg-blue-100 text-blue-800' 
-                                : 'bg-gray-100 text-gray-500'
-                            }`}
-                          >
-                            {week}
-                          </span>
-                        ))}
+          return segmentsToRender.map((segment, segmentIndex) => {
+            if (!segment.coordinates || segment.coordinates.length === 0) {
+              return null;
+            }
+            
+            // Convert coordinates from [lng, lat] to [lat, lng] for Leaflet
+            const positions = segment.coordinates.map(coord => [coord[1], coord[0]]);
+            
+            // Use the group for color if it has isActive, otherwise use the segment
+            const colorSource = group.hasOwnProperty('isActive') ? group : segment;
+            const segmentColor = getLineColor(colorSource);
+            
+            return (
+              <Polyline
+                key={`${groupIndex}-${segment.id}-${segmentIndex}`} // Ensure unique keys
+                positions={positions}
+                color={segmentColor}
+                weight={getLineWeight(segment)}
+                opacity={0.9}
+                eventHandlers={{
+                  click: () => onSegmentClick(segment),
+                }}
+              >
+                <Popup>
+                  <div className="min-w-64">
+                    <h3 className="font-semibold text-lg mb-2">{group.fullName}</h3>
+                    {group.hasOwnProperty('isActive') && (
+                      <div className={`mb-2 px-2 py-1 rounded text-sm font-medium ${
+                        group.isActive ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                      }`}>
+                        {group.isActive ? 'Street cleaning active at searched time' : 'No street cleaning at searched time'}
+                      </div>
+                    )}
+                    <div className="space-y-1 text-sm">
+                      <p><strong>Day:</strong> {segment.weekDay}</p>
+                      <p><strong>Time:</strong> {parseTimeToDisplay(segment.fromHour)} - {parseTimeToDisplay(segment.toHour)}</p>
+                      <p><strong>Side:</strong> {segment.blockSide}</p>
+                      <p><strong>Limits:</strong> {segment.limits}</p>
+                      {segment.distance && (
+                        <p><strong>Distance:</strong> ~{Math.round(segment.distance * 111320)}m from search</p>
+                      )}
+                      {group.count > 1 && (
+                        <p><strong>Grouped with:</strong> {group.sides.join(', ')} sides</p>
+                      )}
+                      <div className="mt-2">
+                        <strong>Weeks:</strong>
+                        <div className="flex gap-1 mt-1">
+                          {[1, 2, 3, 4, 5].map(week => (
+                            <span 
+                              key={week}
+                              className={`px-2 py-1 rounded text-xs ${
+                                segment[`week${week}`] 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-gray-100 text-gray-500'
+                              }`}
+                            >
+                              {week}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </Popup>
-            </Polyline>
-          );
-        })}
+                </Popup>
+              </Polyline>
+            );
+          });
+        }).flat()}
         
         {/* Search result marker */}
         {searchResult && (

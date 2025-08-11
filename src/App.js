@@ -3,7 +3,7 @@ import Map from './components/Map';
 import Sidebar from './components/Sidebar';
 import { 
   loadStreetCleaningData, 
-  getTodaysCleaningSchedule
+  searchStreetCleaningByDateTime
 } from './utils/dataParser';
 
 function App() {
@@ -14,10 +14,12 @@ function App() {
   // Search and location states
   const [searchResult, setSearchResult] = useState(null);
   const [searchQuery, setSearchQuery] = useState(''); // Store the original search query
+  const [searchDate, setSearchDate] = useState('');
+  const [searchTime, setSearchTime] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [selectedSegment, setSelectedSegment] = useState(null);
-  const [todaySchedule, setTodaySchedule] = useState([]);
+  const [nearbySegments, setNearbySegments] = useState([]);
 
   // Load initial data
   useEffect(() => {
@@ -37,27 +39,34 @@ function App() {
     loadData();
   }, []);
 
-  // Update today's schedule when search result or query changes
+  // Update nearby segments when search parameters change
   useEffect(() => {
-    if (searchResult && data.length > 0) {
+    if (searchResult && data.length > 0 && searchDate && searchTime !== null) {
       const coordinates = [searchResult.lng, searchResult.lat];
-      // Pass both coordinates and the street name from search query
-      const todayData = getTodaysCleaningSchedule(data, coordinates, searchQuery);
-      setTodaySchedule(todayData);
+      const segments = searchStreetCleaningByDateTime(
+        data, 
+        coordinates, 
+        searchQuery, 
+        searchDate, 
+        searchTime
+      );
+      setNearbySegments(segments);
     } else {
-      setTodaySchedule([]);
+      setNearbySegments([]);
     }
-  }, [searchResult, data, searchQuery]);
+  }, [searchResult, data, searchQuery, searchDate, searchTime]);
 
-  const handleSearch = async (address) => {
+  const handleSearch = async (searchParams) => {
     setSearchLoading(true);
     setError(null);
-    setSearchQuery(address); // Store the original search query
+    setSearchQuery(searchParams.address);
+    setSearchDate(searchParams.date);
+    setSearchTime(searchParams.time);
     
     try {
       // Using Nominatim (OpenStreetMap) for geocoding - free and no API key required
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', San Francisco, CA')}&limit=1`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchParams.address + ', San Francisco, CA')}&limit=1`
       );
       
       if (!response.ok) {
@@ -139,7 +148,7 @@ function App() {
           searchLoading={searchLoading}
           locationLoading={locationLoading}
           searchResult={searchResult}
-          todaySchedule={todaySchedule}
+          todaySchedule={nearbySegments}
           allData={data}
         />
       </div>
@@ -159,7 +168,7 @@ function App() {
         )}
         
         <Map 
-          data={data}
+          data={nearbySegments.length > 0 ? nearbySegments : data}
           searchResult={searchResult}
           selectedSegment={selectedSegment}
           onSegmentClick={handleSegmentClick}
